@@ -1,0 +1,43 @@
+# Sample MultiKueue Job — Submit to the MANAGEMENT cluster only.
+#
+# MultiKueue picks ONE worker and runs the ENTIRE job there.
+# It is never split across clusters. The podset annotation keeps all pods
+# within one leaf/rack on the chosen worker.
+#
+# Customize:
+#   - Replace <YOUR_NAMESPACE> with your job namespace
+#   - Replace <YOUR_IMAGE> with your training image
+#   - Adjust parallelism and resources
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  generateName: multicluster-training-
+  namespace: <YOUR_NAMESPACE>                  # MUST exist on the worker too
+  labels:
+    kueue.x-k8s.io/queue-name: fleet-lq       # shared LocalQueue name
+spec:
+  parallelism: 2
+  completions: 2
+  suspend: true                                # Kueue/MultiKueue admits + dispatches
+  backoffLimit: 0
+  template:
+    metadata:
+      annotations:
+        # All pods in one leaf (ToR) domain on the chosen worker.
+        kueue.x-k8s.io/podset-required-topology: topology.k8s.aws/network-node-layer-3
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: trainer
+          image: <YOUR_IMAGE>
+          command: ["sh", "-c", "echo 'Dispatched to:' $(hostname); sleep 15; echo done"]
+          resources:
+            requests:
+              cpu: "1"
+              memory: "256Mi"
+            limits:
+              cpu: "1"
+              memory: "256Mi"
+              # nvidia.com/gpu: "8"             # uncomment for GPU
+              # vpc.amazonaws.com/efa: "32"     # uncomment for EFA

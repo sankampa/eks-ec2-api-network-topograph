@@ -1,0 +1,110 @@
+# Topology-Aware Scheduling Patterns (vanilla Kubernetes — no Kueue needed)
+#
+# These patterns use the EC2 API topology labels directly with standard
+# Kubernetes scheduling primitives. No Kueue required.
+#
+# Customize:
+#   - Replace <YOUR_IMAGE> with your container image
+#   - Adjust resources to match your workload
+---
+# Pattern 1: Co-schedule onto the SAME RACK (podAffinity — hard constraint)
+# Pods stay Pending until one rack has room for all of them.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: trainer-same-rack
+  labels:
+    app: my-training-job
+spec:
+  affinity:
+    podAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchLabels:
+              app: my-training-job
+          topologyKey: topology.k8s.aws/network-node-layer-3    # same rack
+  containers:
+    - name: trainer
+      image: <YOUR_IMAGE>
+      resources:
+        limits:
+          nvidia.com/gpu: 8
+          vpc.amazonaws.com/efa: 32
+---
+# Pattern 2: Prefer same rack, but don't block if unavailable
+apiVersion: v1
+kind: Pod
+metadata:
+  name: trainer-prefer-rack
+  labels:
+    app: my-preferred-job
+spec:
+  affinity:
+    podAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchLabels:
+                app: my-preferred-job
+            topologyKey: topology.k8s.aws/network-node-layer-3
+  containers:
+    - name: trainer
+      image: <YOUR_IMAGE>
+      resources:
+        limits:
+          nvidia.com/gpu: 8
+          vpc.amazonaws.com/efa: 32
+---
+# Pattern 3: Spread replicas ACROSS RACKS (fault tolerance)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inference-spread
+spec:
+  replicas: 4
+  selector:
+    matchLabels:
+      app: my-inference-service
+  template:
+    metadata:
+      labels:
+        app: my-inference-service
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.k8s.aws/network-node-layer-3
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: my-inference-service
+      containers:
+        - name: inference
+          image: <YOUR_IMAGE>
+          resources:
+            limits:
+              nvidia.com/gpu: 8
+---
+# Pattern 4: Same BLOCK (layer-2) — easier to satisfy than same-rack
+# Use when a single rack can't hold all pods but you still want proximity.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: trainer-same-block
+  labels:
+    app: my-block-job
+spec:
+  affinity:
+    podAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchLabels:
+              app: my-block-job
+          topologyKey: topology.k8s.aws/network-node-layer-2    # same block/spine
+  containers:
+    - name: trainer
+      image: <YOUR_IMAGE>
+      resources:
+        limits:
+          nvidia.com/gpu: 8
+          vpc.amazonaws.com/efa: 32

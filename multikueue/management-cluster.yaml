@@ -1,0 +1,83 @@
+# MultiKueue — MANAGEMENT cluster (apply on the cluster you submit jobs to)
+#
+# This cluster dispatches whole jobs to workers. No GPUs needed.
+# Worker kubeconfig Secrets must already exist in kueue-system
+# (see scripts/create-multikueue-kubeconfig.sh).
+#
+# Naming contract: NAMESPACE and LOCALQUEUE NAME must match on every worker.
+#
+# Customize:
+#   - Replace <YOUR_NAMESPACE> with your job namespace
+#   - Replace worker names/secrets to match your cluster naming
+#   - Adjust nominalQuota (logical fleet totals >= sum of workers)
+---
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: MultiKueueCluster
+metadata:
+  name: worker-a
+spec:
+  kubeConfig:
+    locationType: Secret
+    location: worker-a-kubeconfig
+---
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: MultiKueueCluster
+metadata:
+  name: worker-b
+spec:
+  kubeConfig:
+    locationType: Secret
+    location: worker-b-kubeconfig
+---
+# Ordered preference: worker-a fills first; worker-b on failover.
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: MultiKueueConfig
+metadata:
+  name: fleet-config
+spec:
+  clusters:
+    - worker-a
+    - worker-b
+---
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: AdmissionCheck
+metadata:
+  name: fleet-multikueue
+spec:
+  controllerName: kueue.x-k8s.io/multikueue
+  parameters:
+    apiGroup: kueue.x-k8s.io
+    kind: MultiKueueConfig
+    name: fleet-config
+---
+# Logical flavor — no nodeLabels. Placement happens on the worker.
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: ResourceFlavor
+metadata:
+  name: fleet-logical
+---
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: ClusterQueue
+metadata:
+  name: fleet-cq
+spec:
+  namespaceSelector: {}
+  admissionChecks:
+    - fleet-multikueue
+  resourceGroups:
+    - coveredResources: ["cpu", "memory", "nvidia.com/gpu", "vpc.amazonaws.com/efa"]
+      flavors:
+        - name: fleet-logical
+          resources:
+            - {name: "cpu", nominalQuota: "10000"}
+            - {name: "memory", nominalQuota: "100000Gi"}
+            - {name: "nvidia.com/gpu", nominalQuota: "1000"}
+            - {name: "vpc.amazonaws.com/efa", nominalQuota: "1000"}
+---
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: LocalQueue
+metadata:
+  name: fleet-lq
+  namespace: <YOUR_NAMESPACE>                  # e.g. training
+spec:
+  clusterQueue: fleet-cq
