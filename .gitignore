@@ -1,6 +1,10 @@
 # Generated kubeconfigs (contain tokens)
 *.kubeconfig
 
+# Allow template kubeconfigs in configs/
+!configs/worker-A.kubeconfig
+!configs/worker-B.kubeconfig
+
 # macOS
 .DS_Store
 
