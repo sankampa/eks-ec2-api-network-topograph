@@ -35,12 +35,18 @@ kubectl create ns <YOUR_NAMESPACE>
 
 ## Step 3 — Apply worker objects on EACH worker
 
+Apply the single `worker-cluster.yaml` template on every worker, pointing `kubectl`
+at that worker's context first and substituting that worker's own instance type and
+quota (see the `Customize per worker` header in the file).
+
 ```bash
 # Worker A
-kubectl apply -f worker-cluster-example-a.yaml
+kubectl config use-context <worker-a-context>
+kubectl apply -f worker-cluster.yaml   # with Worker A's instance type + quota
 
 # Worker B
-kubectl apply -f worker-cluster-example-b.yaml
+kubectl config use-context <worker-b-context>
+kubectl apply -f worker-cluster.yaml   # with Worker B's instance type + quota
 ```
 
 Verify ClusterQueue is Active:

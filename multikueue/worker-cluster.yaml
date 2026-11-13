@@ -1,15 +1,18 @@
-# MultiKueue — WORKER cluster (apply on EACH cluster that runs jobs)
+# MultiKueue — WORKER cluster (apply on EACH worker cluster that runs jobs)
 #
-# Each worker runs its own Kueue and enforces its own per-cluster quota.
+# This is ONE parameterized template. Apply it on every worker, substituting
+# that worker's own instance type and quota — do NOT keep a separate copy per
+# worker. Each worker runs its own Kueue and enforces its own per-cluster quota.
 # TAS is integrated: the ResourceFlavor binds to topology labels.
 #
 # HARD CONTRACT: LocalQueue NAME (fleet-lq) and NAMESPACE must match
 # what the management cluster submits to.
 #
-# Customize:
-#   - Replace <YOUR_INSTANCE_TYPE> with your GPU instance type
-#   - Replace <YOUR_NAMESPACE> with your job namespace
-#   - Adjust nominalQuota to match this cluster's capacity
+# Customize per worker:
+#   - Replace <YOUR_INSTANCE_TYPE> with THIS worker's GPU instance type
+#   - Replace <YOUR_NAMESPACE> with your job namespace (same on every cluster)
+#   - Set each nominalQuota to THIS worker's capacity (nodes x per-node amount);
+#     a smaller worker gets smaller numbers, so the two workers are not identical
 ---
 apiVersion: kueue.x-k8s.io/v1beta2
 kind: Topology

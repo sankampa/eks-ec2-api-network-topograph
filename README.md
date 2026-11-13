@@ -20,7 +20,8 @@ No NVIDIA Topograph controller needed. Same data, same labels, zero deploy footp
 ```
 ├── README.md
 ├── docs/
-│   └── GUIDANCE.md                            ← Full guidance doc (how topology works, IAM, gotchas)
+│   ├── GUIDANCE.md                            ← Full guidance doc (how topology works, IAM, gotchas)
+│   └── COST.md                                ← Cost drivers, per-service breakdown, cost controls
 ├── scripts/
 │   ├── label-nodes-from-ec2-topology.sh       ← Labeling script (Bash 4+, the Topograph replacement)
 │   ├── label-nodes-from-ec2-topology-macos.sh ← macOS-compatible version (Bash 3.2)
@@ -32,8 +33,7 @@ No NVIDIA Topograph controller needed. Same data, same labels, zero deploy footp
 └── multikueue/
     ├── INSTRUCTIONS.md                        ← Step-by-step MultiKueue setup
     ├── management-cluster.yaml                ← Management cluster MultiKueue objects
-    ├── worker-cluster-example-a.yaml          ← Worker cluster (TAS + queue)
-    ├── worker-cluster-example-b.yaml          ← Second worker (same template)
+    ├── worker-cluster.yaml                    ← Worker cluster template (apply per worker w/ its quota)
     ├── sample-multicluster-job.yaml           ← Sample dispatch job with TAS annotation
     ├── smoke-test-no-tas.yaml                 ← Basic smoke test (no TAS, proves dispatch)
     └── crd-stubs/                             ← CRD stubs Kueue v0.19 requires on workers
@@ -41,6 +41,17 @@ No NVIDIA Topograph controller needed. Same data, same labels, zero deploy footp
         ├── mpijob-crd.yaml                    ← MPIJob stub
         └── trainjob-crd.yaml                  ← TrainJob stub
 ```
+
+---
+
+## Prerequisites
+
+Have these in place before step 1:
+
+- **Tooling:** AWS CLI v2, `kubectl`, and `python3` (the labeling scripts use all three). The default labeling script needs **Bash 4+**; on macOS (Bash 3.2) use `label-nodes-from-ec2-topology-macos.sh`.
+- **Cluster:** an existing EKS cluster (one management + one or more workers for the MultiKueue steps) with **GPU nodes**, on a supported instance type (see *Supported Instance Types* below).
+- **Access:** `kubectl` cluster-admin on each cluster, and AWS credentials with **`ec2:DescribeInstanceTopology`** (see `scripts/iam-policy.json`).
+- **Kueue v0.19.0** installed on every cluster (the Quick Start installs it).
 
 ---
 
@@ -116,6 +127,12 @@ The EC2 `DescribeInstanceTopology` API returns data for:
 | Script fails on macOS | Use `label-nodes-from-ec2-topology-macos.sh` (no `mapfile` dependency). |
 | MultiKueue `ClientConnectionFailed` | Install CRD stubs on workers + expand RBAC. See `multikueue/INSTRUCTIONS.md`. |
 | `Flavor does not support TopologyAwareScheduling` | Management cluster flavor must NOT have `topologyName`. TAS is worker-side only. |
+
+---
+
+## Cost
+
+See [`docs/COST.md`](docs/COST.md) for what drives cost on this stack (GPU EC2 instances dominate; the EC2-API labeling path adds no extra controller), a per-service breakdown, and the levers that cap spend.
 
 ---
 
